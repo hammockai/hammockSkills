@@ -37,7 +37,7 @@ Si dos fuentes no coinciden, gana el archivo con fecha más nueva y lo avisas en
 **Idioma:** la salida va en español (el idioma del Capitán), corta. Las etiquetas fijas quedan tal cual.
 
 ## Cuándo se usa y cuándo no
-- Se usa para: el primer mensaje de la sesión coordinadora del día. Una Bridge por día.
+- Se usa para: el primer mensaje de la sesión coordinadora del día. Un Bridge por día.
 - No se usa para: cerrar la sesión (`hammockai-session-close`); asignar trabajo a agentes (el Contramaestre, después de que el Capitán elige); revisiones semanales ni pronóstico de olas (fuera de esta versión).
 
 ## Entradas (solo lectura, en este orden)
@@ -51,8 +51,8 @@ Si dos fuentes no coinciden, gana el archivo con fecha más nueva y lo avisas en
 
 ## Pasos
 1. **Lee las entradas.** Nada más: ni carpetas de clientes. Si el `Actualizado` del tablero tiene más de 3 días, dilo en una línea.
-2. **¿Se cerró la Bridge anterior?** Si `prompts/handoff/bridge.md` existe y su campo `Cerrada:` está vacío, la última Bridge nunca cerró: dilo en una línea y toma su contenido como el estado más fresco (es más nuevo que el tablero).
-3. **Concilia.** Arma la lista de pendientes del Capitán desde el tablero y marca cada uno que un handoff más nuevo, un commit de la entrada 4 o la Bridge anterior muestre como hecho. Lista las contradicciones en 3 líneas o menos (fuente contra fuente).
+2. **¿Se cerró el Bridge anterior?** Si `prompts/handoff/bridge.md` existe y su campo `Cerrada:` está vacío, el último Bridge nunca cerró: dilo en una línea y toma su contenido como el estado más fresco (es más nuevo que el tablero).
+3. **Concilia.** Arma la lista de pendientes del Capitán desde el tablero y marca cada uno que un handoff más nuevo, un commit de la entrada 4 o el Bridge anterior muestre como hecho. Lista las contradicciones en 3 líneas o menos (fuente contra fuente).
 4. **Pregunta antes de planificar: una pregunta.** Muestra la lista conciliada (numerada, una línea cada uno) y pregunta: "¿Cuáles de estos ya hiciste, aquí o fuera del PC?". Para y espera. Por qué: el Capitán hace cosas fuera del computador y en otras pestañas que ningún archivo ve; el 2026-11-06 el plan listó como pendientes cosas hechas horas o días antes.
 5. **Anota su respuesta de inmediato.** Marca esas filas como hechas en la tabla de pendientes del tablero `(según el Capitán, AAAA-MM-DD)`; si menciona una decisión sin detalle, escribe `[FALTA: qué se decidió]`. Abre `prompts/handoff/bridge.md` desde la plantilla de abajo con lo que dijo (si el anterior nunca se cerró, primero muévelo a `bitacora/sesiones/AAAA-MM-DD-bridge-sin-cierre.md`).
 6. **El plan.**
