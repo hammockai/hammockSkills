@@ -2,7 +2,7 @@
 
 *[Español](README.es.md)*
 
-Skills for Claude Code made and used every day by the Hammock AI crew. Each one comes in English (`SKILL.md`, the one Claude Code loads) and Spanish (`SKILL.es.md`, reference).
+Skills and plugins for Claude Code made and used every day by the Hammock AI crew. Each skill comes in English (`SKILL.md`, the one Claude Code loads) and Spanish (`SKILL.es.md`, reference).
 
 Hammock AI's idea is simple: help people get their time back, all from a hammock. We use these skills in our own work first. When one works, we share it here.
 
@@ -25,6 +25,29 @@ Hammock AI's idea is simple: help people get their time back, all from a hammock
 - `hammockai-web-design` takes screenshots with Edge on Windows; on Mac or Linux change the executable. The command asks for your permission.
 
 Every skill carries our built-in rules: nothing invented (unknowns are marked), no personal data where it doesn't belong, no surprises (it doesn't send, publish or spend without asking), and the person always decides.
+
+## Plugins
+| Plugin | What it does |
+|---|---|
+| `hammock-guards` | A **usage panel** next to the chat ("USO - HAMMOCK AI"): how much of your 5-hour and weekly limits you have used, how full this conversation is, what each open Claude Code tab and each helper agent is doing, and a warning when more than 2 are working at once. At 90 % of a limit it asks for an orderly close. If your project has a `prompts/handoff/` folder, like the one `hammockai-daily-plan` sets up, it also reminds Claude to keep the session notes there up to date and asks you to run `/hammockai-session-close` (included in this repo). |
+
+**Install** (Claude Code 2.1.275 or later):
+```
+/plugin install hammock-guards --marketplace hammockai/hammockSkills
+```
+In the VS Code extension, where `/plugin` is not available, run it from a terminal:
+```
+claude plugin marketplace add hammockai/hammockSkills
+claude plugin install hammock-guards@hammock-skills
+```
+
+**Good to know**
+- The panel and its messages are in Spanish.
+- Every figure comes from Claude Code itself (`/usage`, `/context`, `/cost`); nothing is estimated. The dollar amount is what the session would cost on the API, not what you pay on a subscription.
+- To see your other tabs, each tab writes a small file about itself in `~/.claude/hammock-usage/` (or `$CLAUDE_CONFIG_DIR/hammock-usage/`): the session id, the name of the project folder or session note, and usage figures; never your conversation. The files are reused, not deleted on their own. Only tabs with the plugin show up.
+- Before recording your screen, type `/uso grabar`: tab, folder, task, file and connector names are hidden. `/uso normal` turns it off.
+- It uses Claude Code's plugin hooks, an early-access feature that may change between versions.
+- The idea for the agent list and the token count came from [mod-roadmap-monitor](https://github.com/jlefernandez/mod-roadmap-monitor) by jlefernandez. Our code is written from scratch; none of his is copied.
 
 ## Where they come from
 We build them in the open: the whole journey, mistakes included, is in our [GitHub](https://github.com/hammockai). The story behind them and what we do lives at **[hammockai.site](https://hammockai.site)**.

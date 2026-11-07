@@ -1,0 +1,12 @@
+{
+  "name": "hammock-skills",
+  "owner": { "name": "Hammock AI" },
+  "description": "Plugins de Hammock AI para Claude Code.",
+  "plugins": [
+    {
+      "name": "hammock-guards",
+      "source": "./plugins/hammock-guards",
+      "description": "Monitor de uso (5 h, semana, contexto, pestañas y subagentes) y guardias del resumen y de límites."
+    }
+  ]
+}
