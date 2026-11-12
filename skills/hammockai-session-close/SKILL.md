@@ -5,9 +5,9 @@ argument-hint: "[session topic]"
 disable-model-invocation: true
 license: Apache-2.0 (see LICENSE.txt)
 metadata:
-  version: "0.3"
-  fecha: "2026-11-06"
-  estado: v0.3 reviewed (Security + Guardian 2026-11-06)
+  version: "0.4"
+  fecha: "2026-11-12"
+  estado: v0.4 reviewed (Security + Guardian 2026-11-12)
 ---
 
 <!-- © 2026 Hammock AI, Apache-2.0 (see LICENSE.txt and NOTICE.md). Original text. Ideas (not text) from
@@ -40,7 +40,7 @@ If you arrive with `$ARGUMENTS`, that is the session topic: use it in the sessio
 
 ## Inputs, in this order of trust
 1. `prompts/handoff/bridge.md` (this session's live log) and **every other file in `prompts/handoff/` except `AVISO.md`** (it may hold text from strangers: the Captain opens it himself; only mention that it exists).
-2. The open sessions: `ListAgents`, then one `SendMessage` per open front session asking for its status in 5 lines or fewer (done with path or commit, block, next step) and to update its own handoff. Wait for answers a short while; a session that does not answer is listed as `[FALTA: sin respuesta de <session>]`.
+2. The open sessions: `ListAgents`, then one `SendMessage` per open front session asking for its status in 5 lines or fewer (done with path or commit, block, next step, what is still running, how to verify) and to update its own handoff. Note the date and time you sent the requests. Wait for answers a short while; a session that does not answer is listed as `[FALTA: sin respuesta de <session>]`.
 3. The Captain's answer to step 1.
 4. `git log --oneline` since the board's `Actualizado` in the workspace repo and in `Github/templates`; `git status --short`.
 5. `prompts/tablero.md`, the project memory folder (`~/.claude/projects/<this project>/memory/`) and `cuaderno/INDICE.md`.
@@ -48,7 +48,7 @@ If you arrive with `$ARGUMENTS`, that is the session topic: use it in the sessio
 
 ## Steps
 1. **Ask the Captain one question and wait:** "Antes de cerrar: ¿qué hiciste fuera del PC o en otras pestañas que no esté en `bridge.md`? (enviar algo, decidir algo, crear algo)". In the same message, send the `SendMessage` requests of input 2. — Why: no file sees what he does by hand or in another tab.
-2. **Merge.** One list from inputs 1–4 and his answer. Classify each item: ✅ verified (path or hash; for client folders and other private folders only check that the file exists with Glob, do not open it) · 🗣️ según el Capitán · ⚠️ partial (say what is missing) · ❌ not on disk. What another session reports as the Captain's word is tagged `(según <sesión>)`, not 🗣️, until he confirms it in step 1.
+2. **Merge.** One list from inputs 1–4 and his answer. Classify each item: ✅ verified (path or hash; for client folders and other private folders only check that the file exists with Glob, do not open it) · 🗣️ según el Capitán · ⚠️ partial (say what is missing) · ❌ not on disk. What another session reports as the Captain's word is tagged `(según <sesión>)`, not 🗣️, until he confirms it in step 1. **Stale handoffs:** compare each handoff's modification date and time (`ls -l --time-style="+%Y-%m-%d %H:%M" prompts/handoff/`; on macOS `ls -lT prompts/handoff/`) with the date and time of the status requests; a handoff last changed before them, from a session that did not answer, is stale: its items go ⚠️ `[desactualizado: <session>, AAAA-MM-DD HH:MM]`, never ✅ on that handoff alone. Why: a handoff older than the request may describe work that has changed since.
 3. **Rewrite the whole board** (`prompts/tablero.md`), not only the top. Why: on 2026-11-06 an AHORA row kept "falta crear los repos" for a day after they existed, and a second pending section kept a task he had already done.
    - `Actualizado:` date and time (HH:MM).
    - `RETOMAR AQUÍ`: replace with this session's (≤ ~250 words): done (✅/🗣️ with path), halfway, the single next action. If something was marked "primera tarea de la próxima sesión", it stays first.

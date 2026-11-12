@@ -4,9 +4,9 @@ description: Abre The Bridge (la sesión coordinadora del día del Contramaestre
 license: Apache-2.0 (ver LICENSE.txt)
 disable-model-invocation: true
 metadata:
-  version: "0.4"
-  fecha: "2026-11-06"
-  estado: v0.4 revisada (Security + Guardian 2026-11-06)
+  version: "0.5"
+  fecha: "2026-11-12"
+  estado: v0.5 revisada (Security + Guardian 2026-11-12)
 ---
 
 <!-- Skill original de Hammock AI (sin texto de terceros). Idea acreditada a Nate Herk y al dashboard de un amigo; solo ideas, redacción propia.
@@ -50,6 +50,7 @@ Si dos fuentes no coinciden, gana el archivo con fecha más nueva y lo avisas en
 7. Fecha y hora local de hoy, desde el entorno.
 
 ## Pasos
+0. **Lee completo el prompt del agente que lleva la sesión, antes de tu primer mensaje** (el nuestro: `Github/aiCrew/agents/es/contramaestre.md`, o `agents/en/` si el Capitán escribe en inglés; el tuyo: el prompt del agente que lleva esta sesión). El archivo entero, no un resumen. Por qué: The Bridge es el Contramaestre y el Capitán; un plan hecho sin sus reglas pierde el rumbo.
 1. **Lee las entradas.** Nada más: ni carpetas de clientes. Si el `Actualizado` del tablero tiene más de 3 días, dilo en una línea.
 2. **¿Se cerró el Bridge anterior?** Si `prompts/handoff/bridge.md` existe y su campo `Cerrada:` está vacío, el último Bridge nunca cerró: dilo en una línea y toma su contenido como el estado más fresco (es más nuevo que el tablero).
 3. **Concilia.** Arma la lista de pendientes del Capitán desde el tablero y marca cada uno que un handoff más nuevo, un commit de la entrada 4 o el Bridge anterior muestre como hecho. Lista las contradicciones en 3 líneas o menos (fuente contra fuente).
@@ -72,8 +73,11 @@ Cerrada:
 ## El Capitán avisó (hecho fuera de esta sesión)
 ## Decisiones del Capitán (sus palabras, cortas)
 ## Pendiente
+## Corriendo ahora (qué, dónde, cómo pararlo: servidor local, tarea en segundo plano, sesión o agente)
+## Cómo verificar (por cada hecho: la ruta, el commit o el comando que lo prueba)
 ## Siguiente acción
 ```
+Por qué las dos últimas: una sesión nueva no ve un servidor que quedó corriendo ni sabe cómo comprobar algo marcado como hecho; sin esas líneas repite el trabajo o se lo cree a ciegas.
 
 ## Salida (ejemplo ficticio)
 Primer mensaje:

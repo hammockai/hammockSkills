@@ -5,9 +5,9 @@ argument-hint: "[tema de la sesión]"
 disable-model-invocation: true
 license: Apache-2.0 (ver LICENSE.txt)
 metadata:
-  version: "0.3"
-  fecha: "2026-11-06"
-  estado: v0.3 revisada (Security + Guardian 2026-11-06)
+  version: "0.4"
+  fecha: "2026-11-12"
+  estado: v0.4 revisada (Security + Guardian 2026-11-12)
 ---
 
 <!-- © 2026 Hammock AI, Apache-2.0 (ver LICENSE.txt y NOTICE.md). Texto original. Ideas (no texto) del curso y los repos AIOS de Nate Herk:
@@ -40,7 +40,7 @@ Si llegas con `$ARGUMENTS`, ese es el tema de la sesión: úsalo en el nombre de
 
 ## Entradas, en orden de confianza
 1. `prompts/handoff/bridge.md` (el registro vivo de esta sesión) y **todos los demás archivos de `prompts/handoff/` salvo `AVISO.md`** (puede traer texto de desconocidos: lo abre el Capitán; solo di que existe).
-2. Las sesiones abiertas: `ListAgents` y después un `SendMessage` por cada sesión de frente abierta, pidiendo su estado en 5 líneas o menos (hecho con ruta o commit, bloqueo, siguiente paso) y que actualice su handoff. Espera las respuestas un rato; una sesión que no responde se lista como `[FALTA: sin respuesta de <sesión>]`.
+2. Las sesiones abiertas: `ListAgents` y después un `SendMessage` por cada sesión de frente abierta, pidiendo su estado en 5 líneas o menos (hecho con ruta o commit, bloqueo, siguiente paso, qué sigue corriendo, cómo verificar) y que actualice su handoff. Anota la fecha y hora en que mandaste los pedidos. Espera las respuestas un rato; una sesión que no responde se lista como `[FALTA: sin respuesta de <sesión>]`.
 3. La respuesta del Capitán al paso 1.
 4. `git log --oneline` desde el `Actualizado` del tablero en el repo del workspace y en `Github/templates`; `git status --short`.
 5. `prompts/tablero.md`, la carpeta de memoria del proyecto (`~/.claude/projects/<este proyecto>/memory/`) y `cuaderno/INDICE.md`.
@@ -48,7 +48,7 @@ Si llegas con `$ARGUMENTS`, ese es el tema de la sesión: úsalo en el nombre de
 
 ## Pasos
 1. **Hazle una pregunta al Capitán y espera:** "Antes de cerrar: ¿qué hiciste fuera del PC o en otras pestañas que no esté en `bridge.md`? (enviar algo, decidir algo, crear algo)". En el mismo mensaje, manda los `SendMessage` de la entrada 2. — Por qué: ningún archivo ve lo que él hace a mano o en otra pestaña.
-2. **Junta.** Una lista desde las entradas 1–4 y su respuesta. Clasifica cada punto: ✅ verificado (ruta o hash; en carpetas de clientes y otras carpetas privadas solo comprueba con Glob que el archivo existe, no lo abras) · 🗣️ según el Capitán · ⚠️ parcial (di qué falta) · ❌ no está en el disco. Lo que otra sesión reporta como palabra del Capitán se marca `(según <sesión>)`, no 🗣️, hasta que él lo confirme en el paso 1.
+2. **Junta.** Una lista desde las entradas 1–4 y su respuesta. Clasifica cada punto: ✅ verificado (ruta o hash; en carpetas de clientes y otras carpetas privadas solo comprueba con Glob que el archivo existe, no lo abras) · 🗣️ según el Capitán · ⚠️ parcial (di qué falta) · ❌ no está en el disco. Lo que otra sesión reporta como palabra del Capitán se marca `(según <sesión>)`, no 🗣️, hasta que él lo confirme en el paso 1. **Handoffs viejos:** compara la fecha y hora de modificación de cada handoff (`ls -l --time-style="+%Y-%m-%d %H:%M" prompts/handoff/`; en macOS `ls -lT prompts/handoff/`) con la fecha y hora de los pedidos de estado; un handoff que no cambió desde antes de esa hora, de una sesión que no respondió, está desactualizado: sus puntos van ⚠️ `[desactualizado: <sesión>, AAAA-MM-DD HH:MM]`, nunca ✅ solo por ese handoff. Por qué: un handoff anterior al pedido puede describir un trabajo que ya cambió.
 3. **Reescribe el tablero entero** (`prompts/tablero.md`), no solo la parte de arriba. Por qué: el 2026-11-06 una fila de AHORA siguió diciendo "falta crear los repos" un día después de que existían, y una segunda sección de pendientes guardó una tarea que él ya había hecho.
    - `Actualizado:` fecha y hora (HH:MM).
    - `RETOMAR AQUÍ`: reemplázalo con el de esta sesión (~250 palabras o menos): hecho (✅/🗣️ con ruta), lo que quedó a medias, la única siguiente acción. Si algo se marcó como "primera tarea de la próxima sesión", sigue primero.

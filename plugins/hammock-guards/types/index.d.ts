@@ -63,8 +63,10 @@ declare module 'claude-code' {
       lastNudgeAt: number
       /** Ventanas que ya mostraron el aviso del 80 %. */
       warned: Fired
-      /** Ventanas que ya pidieron el cierre ordenado del 90 %. */
+      /** Ventanas que ya pidieron la pausa (o el cierre) del 90 %. */
       closed: Fired
+      /** El contexto ya pasó el 60 % y se pidió el cierre (una vez por sesión). */
+      ctxClosed: boolean
       /** Nombre del archivo de ficha de esta pestaña (p. ej. <id>.json). */
       slot: string | null
       /** Turno del hilo principal en curso. */

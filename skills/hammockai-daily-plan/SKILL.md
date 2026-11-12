@@ -4,9 +4,9 @@ description: Opens The Bridge (the Contramaestre's daily coordinating session) a
 license: Apache-2.0 (see LICENSE.txt)
 disable-model-invocation: true
 metadata:
-  version: "0.4"
-  fecha: "2026-11-06"
-  estado: v0.4 reviewed (Security + Guardian 2026-11-06)
+  version: "0.5"
+  fecha: "2026-11-12"
+  estado: v0.5 reviewed (Security + Guardian 2026-11-12)
 ---
 
 <!-- Original Hammock AI skill (no third-party text). Idea credited to Nate Herk and to a friend's dashboard; ideas only, own wording.
@@ -50,6 +50,7 @@ If two sources disagree, the newer dated file wins and you flag it in one line. 
 7. Today's date and local time from the environment.
 
 ## Steps
+0. **Read the lead agent's prompt in full, before your first message** (ours: `Github/aiCrew/agents/es/contramaestre.md`, or `agents/en/` if the Captain writes in English; yours: the prompt of the agent that leads this session). Read the whole file, not a summary of it. Why: The Bridge is the Contramaestre and the Captain; a plan written without his rules loses the course.
 1. **Read the inputs.** Nothing else: no client folders. If the board's `Actualizado` is older than 3 days, say so in one line.
 2. **Is the previous Bridge closed?** If `prompts/handoff/bridge.md` exists and its `Cerrada:` field is empty, the last Bridge never closed: say so in one line and treat its content as the freshest state (it is newer than the board).
 3. **Reconcile.** Build the Captain's pending list from the board, then strike or flag every item that a newer handoff, a commit from input 4 or the old Bridge shows as done. List contradictions in at most 3 lines (source vs source).
@@ -72,8 +73,11 @@ Cerrada:
 ## El Capitán avisó (hecho fuera de esta sesión)
 ## Decisiones del Capitán (sus palabras, cortas)
 ## Pendiente
+## Corriendo ahora (qué, dónde, cómo pararlo: servidor local, tarea en segundo plano, sesión o agente)
+## Cómo verificar (por cada hecho: la ruta, el commit o el comando que lo prueba)
 ## Siguiente acción
 ```
+Why the last two: a new session cannot see a server left running or know how to check a "done" item; without those lines it repeats the work or trusts it blindly.
 
 ## Output (fictional example)
 First message:

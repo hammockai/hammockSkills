@@ -5,7 +5,9 @@ import type { AgentRow, Ficha, Fired, Limit, Peer, Snapshot, Tokens } from '../t
 // Guardias de Hammock AI (2026-11).
 // 1. Resumen: si hubo trabajo en el turno y el handoff de la sesión lleva más
 //    de 20 min sin cambios, pide una vez anotar (una línea por hecho).
-// 2. Límites: toast al 80 % y pedido de cierre ordenado al 90 %, una vez por ventana.
+// 2. Límites y contexto: toast al 80 %; al 90 % pide anotar y pausar (una vez por ventana).
+//    El cierre ordenado lo pide el contexto al 60 % (una vez por sesión): un bloque de 5 h
+//    se renueva, la ventana de contexto no.
 // 3. Monitor de uso: status line (5 h, semana, contexto, cuántos trabajan),
 //    panel /uso con las pestañas y los subagentes, y aviso cuando trabajan más
 //    de 2 a la vez. Las otras pestañas se ven por su ficha en ~/.claude/hammock-usage/
@@ -15,7 +17,8 @@ const STALE_MS = 20 * 60 * 1000
 const WARN_AT = 80
 const CLOSE_AT = 90
 const WORK_TOOLS = new Set(['Edit', 'Write', 'Bash', 'NotebookEdit'])
-const CLOSE_GAP_MS = 30 * 60 * 1000 // tope: un pedido de cierre cada 30 min
+const CLOSE_GAP_MS = 30 * 60 * 1000 // tope: un pedido de cierre o pausa cada 30 min
+const CTX_CLOSE_AT = 60 // una sesión se cierra por su ventana de contexto, no por el bloque de 5 h
 // Nombre corto y suelto: nada de "x/prompts/handoff/AAAA…" pegado en una URL.
 const HANDOFF_RE = /(?:^|[\s"'`(/\\:])prompts\/handoff\/([\w-]{1,40}\.md)(?![\w.-])/i
 const TYPED = new Set(['composer', 'bridge', 'sdk']) // lo que escribe la persona
@@ -41,6 +44,7 @@ const titleEvtRef = { plugin: 'hammock-guards', key: 'titleEvt' } as const
 const nudgeRef = { plugin: 'hammock-guards', key: 'lastNudgeAt' } as const
 const warnedRef = { plugin: 'hammock-guards', key: 'warned' } as const
 const closedRef = { plugin: 'hammock-guards', key: 'closed' } as const
+const ctxClosedRef = { plugin: 'hammock-guards', key: 'ctxClosed' } as const
 const slotRef = { plugin: 'hammock-guards', key: 'slot' } as const
 const busyRef = { plugin: 'hammock-guards', key: 'busy' } as const
 const snapRef = { plugin: 'hammock-guards', key: 'snap' } as const
@@ -54,6 +58,55 @@ const mainModelRef = { plugin: 'hammock-guards', key: 'mainModel' } as const
 /** Modo grabación: una sola fuente, $.store (vale para todas las pestañas y sesiones). */
 async function isRecording($: EngineInterface): Promise<boolean> {
   return (await $.store.get('recording')) === true
+}
+
+/** Con carpeta prompts/handoff (flujo de hammockai-daily-plan) los pedidos usan handoff y skill de cierre. */
+async function hasHandoffs($: EngineInterface): Promise<boolean> {
+  return (await findBase($, slash(await $.session.root()))) !== null
+}
+
+/** Cuánto hace que se tocó el handoff más nuevo de `base/prompts/handoff` (ms); Infinity si no hay. */
+async function newestHandoffAge($: EngineInterface, base: string, now: number): Promise<number> {
+  try {
+    const entries = await $.fs.list(`${base}/prompts/handoff`)
+    const times = entries
+      .filter(f => f.kind === 'file' && !f.isLink && /\.md$/i.test(f.name) && !/^aviso\.md$/i.test(f.name))
+      .map(f => f.mtimeMs)
+      .filter(t => t <= now) // una hora futura no cuenta como reciente
+    return times.length ? now - Math.max(...times) : Infinity
+  } catch {
+    return Infinity
+  }
+}
+
+/** Pedido de cierre ordenado: el contexto llegó a ~60 %. */
+function closeText(head: string, handoffs: boolean): string {
+  return (
+    head +
+    'Cierre ordenado, sin empezar trabajo nuevo: ' +
+    (handoffs
+      ? '1) actualiza ahora el handoff de esta sesión (estado, siguiente acción, archivos; ≤ 300 palabras); ' +
+        '2) guarda en la memoria del proyecto cualquier decisión nueva de la persona; ' +
+        '3) avísale en una línea que corra /hammockai-session-close.'
+      : '1) resume en el chat el estado, la siguiente acción y los archivos tocados (≤ 150 palabras); ' +
+        '2) avísale a la persona en una línea que conviene seguir en una conversación nueva.')
+  )
+}
+
+/** Pedido de pausa: el límite se acaba pero el contexto alcanza; la sesión se retoma al renovarse. */
+function pauseText(head: string, handoffs: boolean, ctx: number | undefined, left: string): string {
+  const room = ctx === undefined ? '' : ` (el contexto va en ${ctx} %; se cierra a ~${CTX_CLOSE_AT} %)`
+  return (
+    head +
+    `Pausa ordenada, NO cierre${room}: ` +
+    (handoffs
+      ? '1) actualiza ahora el handoff de esta sesión (estado, siguiente acción, archivos; ≤ 300 palabras); ' +
+        '2) guarda en la memoria del proyecto cualquier decisión nueva de la persona; ' +
+        '3) no empieces trabajo largo; '
+      : '1) resume en el chat el estado y la siguiente acción (≤ 150 palabras); 2) no empieces trabajo largo; ') +
+    `avísale en una línea que la sesión queda en pausa${left ? ` (el límite se renueva en ${left})` : ''} ` +
+    'y que se retoma aquí mismo, sin cerrarla.'
+  )
 }
 
 /** Ruta relativa del handoff si `text` nombra uno (nunca AVISO.md). */
@@ -767,6 +820,8 @@ export const register: Register = on => {
         handoff = base === root ? named : path // fuera de la raíz, la ruta completa
       }
     }
+    // Handoff desconocido (p. ej. sesión retomada): si algún handoff se anotó hace poco, no empuja.
+    if (handoff === null && (await newestHandoffAge($, base, now)) < STALE_MS) return done
 
     await $.state.set(nudgeRef, now)
     // Grabando: ni ruta ni nombre del handoff en el chat.
@@ -799,6 +854,18 @@ export const register: Register = on => {
     })
     ensureTick($)
     await pulse($)
+
+    // Una sesión se cierra por su ventana de contexto (~60 %), no por el bloque de 5 h que se renueva.
+    const ctx = e.context.percent ?? prev.ctx
+    const full = ctx !== undefined && ctx >= CTX_CLOSE_AT
+    const { value: ctxClosed = false } = await $.state.get(ctxClosedRef)
+    // Tras /compact o /clear el contexto baja: se rearma para avisar de nuevo al volver a cruzar.
+    if (ctx !== undefined && !full && ctxClosed) await $.state.set(ctxClosedRef, false)
+    if (full && !ctxClosed) {
+      await $.state.set(ctxClosedRef, true)
+      $.ui.toast(`⛔ Contexto al ${ctx} %: toca cerrar esta sesión.`, { timeoutMs: 10000 })
+      send($, { text: closeText(`[guardia de contexto] La conversación va en ${ctx} % de su ventana. `, await hasHandoffs($)) })
+    }
     if (limits.length === 0) return done
 
     const { value: warned = {} as Fired } = await $.state.get(warnedRef)
@@ -814,25 +881,30 @@ export const register: Register = on => {
       if (l.percentUsed >= CLOSE_AT && closed[l.kind] !== stamp && now - lastClose >= CLOSE_GAP_MS) {
         nextClosed = { ...nextClosed, [l.kind]: stamp, _at: String(now) }
         nextWarned = { ...nextWarned, [l.kind]: stamp }
-        $.ui.toast(`⛔ Límite de ${label(l.kind)} al ${l.percentUsed} %: cierre ordenado.`, { timeoutMs: 10000 })
-        // Con carpeta prompts/handoff (flujo de hammockai-daily-plan): handoff + skill de cierre; sin ella, cierre simple.
-        const hasHandoffs = (await findBase($, slash(await $.session.root()))) !== null
-        send($, {
-          text:
-            `[guardia de límites] El límite de ${label(l.kind)} va en ${l.percentUsed} %` +
-            `${left ? ` (se renueva en ${left})` : ''}. Cierre ordenado, sin empezar trabajo nuevo: ` +
-            (hasHandoffs
-              ? '1) actualiza ahora el handoff de esta sesión (estado, siguiente acción, archivos; ≤ 300 palabras); ' +
-                '2) guarda en la memoria del proyecto cualquier decisión nueva de la persona; ' +
-                '3) avísale en una línea que corra /hammockai-session-close.'
-              : '1) resume en el chat el estado, la siguiente acción y los archivos tocados (≤ 150 palabras); ' +
-                '2) avísale a la persona en una línea que conviene cerrar la sesión y seguir cuando el límite se renueve.'),
-        })
+        const head =
+          `[guardia de límites] El límite de ${label(l.kind)} va en ${l.percentUsed} %` +
+          `${left ? ` (se renueva en ${left})` : ''}. `
+        const handoffs = await hasHandoffs($)
+        if (full && !ctxClosed) {
+          // La guardia de contexto ya pidió el cierre en esta misma medición: solo el aviso.
+          $.ui.toast(`⛔ Límite de ${label(l.kind)} al ${l.percentUsed} %.`, { timeoutMs: 10000 })
+        } else if (full) {
+          $.ui.toast(`⛔ Límite de ${label(l.kind)} al ${l.percentUsed} % y contexto al ${ctx} %: cierre ordenado.`, { timeoutMs: 10000 })
+          send($, { text: closeText(head, handoffs) })
+        } else {
+          // Contexto bajo 60 %: la sesión sigue sirviendo; se pausa hasta que el límite se renueve.
+          $.ui.toast(
+            `⏸️ Límite de ${label(l.kind)} al ${l.percentUsed} %: pausa${left ? ` hasta que se renueve (${left})` : ''}. ` +
+              'No cierres la sesión.',
+            { timeoutMs: 10000 },
+          )
+          send($, { text: pauseText(head, handoffs, ctx, left) })
+        }
       } else if (l.percentUsed >= WARN_AT && warned[l.kind] !== stamp) {
         nextWarned = { ...nextWarned, [l.kind]: stamp }
         $.ui.toast(
           `⚠️ Límite de ${label(l.kind)} al ${l.percentUsed} %${left ? `, se renueva en ${left}` : ''}. ` +
-            'Al 90 % pido el cierre ordenado.',
+            'Al 90 % pido anotar y pausar.',
           { timeoutMs: 8000 },
         )
       }

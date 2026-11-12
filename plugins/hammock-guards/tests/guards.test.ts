@@ -44,7 +44,13 @@ function world(
   on('fs.list', (_, e) => {
     const dir = slash(e.path ?? '')
     const names = Object.keys(out.fichas).filter(p => p.startsWith(`${dir}/`)).map(p => p.slice(dir.length + 1))
-    return { value: names.map(name => ({ name, kind: 'file', size: 1, mtimeMs: 0, isLink: false })) }
+    const own = Object.keys(files).filter(p => p.startsWith(`${dir}/`))
+    return {
+      value: [
+        ...names.map(name => ({ name, kind: 'file', size: 1, mtimeMs: 0, isLink: false })),
+        ...own.map(p => ({ name: p.slice(dir.length + 1), kind: 'file', size: 1, mtimeMs: files[p], isLink: false })),
+      ],
+    }
   })
   on('session.id', () => ({ value: out.sessionId }))
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200000, percent: out.ctx }, rateLimits: [], cost: { usd: 1.5 } } }))
@@ -102,7 +108,7 @@ test('resumen: no empuja si el handoff se tocó hace poco', async ($, on) => {
   expect(out.prompts).toEqual([])
 })
 
-test('límites: status, toast al 80 % y cierre al 90 %, una vez por ventana', async ($, on) => {
+test('límites: status, toast al 80 % y pausa (no cierre) al 90 %, una vez por ventana', async ($, on) => {
   const clock = mock.clock(on, { now: Date.parse('2026-11-06T20:00:00Z') })
   const out = world(on, {})
   const measure = (five: number, week: number) =>
@@ -131,7 +137,84 @@ test('límites: status, toast al 80 % y cierre al 90 %, una vez por ventana', as
   await clock.advance(0)
   expect(out.toasts.length).toBe(2)
   expect(out.prompts.length).toBe(1)
+  // El bloque de 5 h se renueva: se anota y se pausa, no se cierra.
+  expect(out.prompts[0]).toContain('Pausa ordenada, NO cierre')
+  expect(out.prompts[0]).toContain('actualiza ahora el handoff')
+  expect(out.prompts[0]).not.toContain('/hammockai-session-close')
+})
+
+test('contexto: al 60 % pide el cierre una vez; con el límite al 90 % en la misma medición, un solo pedido', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-11-06T20:00:00Z') })
+  const out = world(on, {})
+  const measure = (ctx: number, five: number) =>
+    $.session.measure({
+      context: { window: 200000, percent: ctx },
+      changed: ['context', 'rateLimits'],
+      rateLimits: [{ kind: 'five_hour', percentUsed: five, resetsAt: '2026-11-06T22:30:00Z' }],
+    } as never)
+
+  await $.session.start({ cwd: 'C:/proj', surface: 'vscode', isInteractive: true })
+  await measure(30, 92) // límite al 92 % con contexto bajo: pausa, con el contexto a la vista
+  await clock.advance(0)
+  expect(out.prompts.length).toBe(1)
+  expect(out.prompts[0]).toContain('el contexto va en 30 %')
+  expect(out.prompts[0]).not.toContain('/hammockai-session-close')
+
+  await measure(59, 40)
+  await clock.advance(0)
+  expect(out.prompts.length).toBe(1)
+
+  await measure(61, 40) // cruza el 60 %: cierre ordenado
+  await measure(70, 40) // una vez por sesión
+  await clock.advance(0)
+  expect(out.prompts.length).toBe(2)
+  expect(out.prompts[1]).toContain('[guardia de contexto]')
+  expect(out.prompts[1]).toContain('/hammockai-session-close')
+
+  // /compact baja el contexto: se rearma y vuelve a avisar al cruzar otra vez.
+  await measure(15, 40)
+  await measure(62, 40)
+  await clock.advance(0)
+  expect(out.prompts.length).toBe(3)
+})
+
+test('contexto y límite cruzan juntos: un solo pedido de cierre', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-11-06T20:00:00Z') })
+  const out = world(on, {})
+  await $.session.start({ cwd: 'C:/proj', surface: 'vscode', isInteractive: true })
+  await $.session.measure({
+    context: { window: 200000, percent: 65 },
+    changed: ['context', 'rateLimits'],
+    rateLimits: [{ kind: 'five_hour', percentUsed: 93, resetsAt: '2026-11-06T22:30:00Z' }],
+  } as never)
+  await clock.advance(0)
+  expect(out.prompts.length).toBe(1)
   expect(out.prompts[0]).toContain('/hammockai-session-close')
+})
+
+test('resumen: sin handoff conocido (sesión retomada) no empuja si otro handoff se anotó hace poco', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  const files: Record<string, number> = { 'C:/proj/prompts/handoff/panol.md': 0 }
+  const out = world(on, files)
+
+  await $.session.start({ cwd: 'C:/proj', surface: 'vscode', isInteractive: true })
+  await $.prompt.submit({ text: 'sigue', origin: TYPED }) // nunca nombra su handoff
+  await $.tool.call({ tool: 'Bash', command: 'ls' })
+  await $.turn.complete(turnEnd)
+  await clock.advance(30 * MIN)
+  files['C:/proj/prompts/handoff/panol.md'] = clock.now() - 2 * MIN
+  await $.tool.call({ tool: 'Bash', command: 'ls' })
+  await $.turn.complete(turnEnd)
+  await clock.advance(0)
+  expect(out.prompts).toEqual([])
+
+  // Todo viejo: ahora sí empuja, con el texto genérico.
+  await clock.advance(30 * MIN)
+  await $.tool.call({ tool: 'Bash', command: 'ls' })
+  await $.turn.complete(turnEnd)
+  await clock.advance(0)
+  expect(out.prompts.length).toBe(1)
+  expect(out.prompts[0]).toContain('prompts/handoff/<frente>.md')
 })
 
 test('resumen: activado a mitad de sesión (sin session.start) igual empuja', async ($, on) => {

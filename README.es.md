@@ -29,7 +29,7 @@ Cada skill trae nuestras reglas de fábrica: nada inventado (lo que no se sabe s
 ## Plugins
 | Plugin | Qué hace |
 |---|---|
-| `hammock-guards` | Un **panel de uso** al lado del chat ("USO - HAMMOCK AI"): cuánto llevas de tus límites de 5 horas y de la semana, qué tan llena va la conversación, qué está haciendo cada pestaña abierta de Claude Code y cada agente ayudante, y un aviso cuando trabajan más de 2 a la vez. Al 90 % de un límite pide un cierre ordenado. Si tu proyecto tiene una carpeta `prompts/handoff/`, como la que arma `hammockai-daily-plan`, además le recuerda a Claude mantener al día ahí las notas de sesión y te pide correr `/hammockai-session-close` (incluida en este repo). |
+| `hammock-guards` | Un **panel de uso** al lado del chat ("USO - HAMMOCK AI"): cuánto llevas de tus límites de 5 horas y de la semana, qué tan llena va la conversación, qué está haciendo cada pestaña abierta de Claude Code y cada agente ayudante, y un aviso cuando trabajan más de 2 a la vez. Al 90 % de un límite pide anotar el estado y hacer una pausa hasta que se renueve, sin cerrar la sesión. El cierre ordenado lo pide cuando la conversación llega al 60 % de su ventana de contexto. Si tu proyecto tiene una carpeta `prompts/handoff/`, como la que arma `hammockai-daily-plan`, además le recuerda a Claude mantener al día ahí las notas de sesión y te pide correr `/hammockai-session-close` (incluida en este repo). |
 
 **Instalar** (Claude Code 2.1.275 o más nuevo):
 ```
