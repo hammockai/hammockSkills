@@ -81,6 +81,8 @@ declare module 'claude-code' {
       wroteAt: number
       /** Qué hace ahora cada subagente: herramienta y nombre de archivo (sin ruta). */
       activity: Record<string, string>
+      /** Modelo de la última respuesta del hilo principal. */
+      mainModel: string
       // El modo grabación vive en $.store ('recording'): una sola fuente para todas las pestañas.
     }
   }

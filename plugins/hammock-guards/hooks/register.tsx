@@ -45,6 +45,7 @@ const peersRef = { plugin: 'hammock-guards', key: 'peers' } as const
 const crowdRef = { plugin: 'hammock-guards', key: 'crowdWarned' } as const
 const wroteRef = { plugin: 'hammock-guards', key: 'wroteAt' } as const
 const activityRef = { plugin: 'hammock-guards', key: 'activity' } as const
+const mainModelRef = { plugin: 'hammock-guards', key: 'mainModel' } as const
 /** Modo grabación: una sola fuente, $.store (vale para todas las pestañas y sesiones). */
 async function isRecording($: EngineInterface): Promise<boolean> {
   return (await $.store.get('recording')) === true
@@ -338,8 +339,32 @@ type View = {
   mine: Ficha
   peers: Peer[]
   agents: AgentRow[]
+  /** El hilo principal: su nombre (título del CLAUDE.md) y el modelo de su última respuesta. */
+  main: { name: string; model?: string }
   n: number
   rec: boolean
+}
+
+let mainNameCache: string | null = null // variable del módulo: una recarga lo vuelve a leer
+
+/**
+ * Nombre del hilo principal: el primer título "# …" del CLAUDE.md más cercano, cortado
+ * antes de " — ", " - " o ":" (p. ej. "# Contramaestre — agente…" → "Contramaestre"). Sin él: "Claude".
+ */
+async function mainName($: EngineInterface): Promise<string> {
+  if (mainNameCache !== null) return mainNameCache
+  let name = 'Claude'
+  try {
+    const found = await $.fs.ancestors({ names: ['CLAUDE.md'] })
+    const nearest = found[found.length - 1]
+    const heading = nearest?.content.match(/^#\s+(.+)$/m)?.[1] ?? ''
+    const cut = safeLabel(heading.split(/\s[—–-]\s|:/)[0])
+    if (cut !== '?') name = cut
+  } catch {
+    // sin CLAUDE.md legible: queda "Claude"
+  }
+  mainNameCache = name
+  return name
 }
 
 async function usageView($: EngineInterface): Promise<View> {
@@ -359,7 +384,10 @@ async function usageView($: EngineInterface): Promise<View> {
     // Grabando: solo el nombre de la herramienta, y "mcp" para un conector (no deja ver cuáles tienes).
     doing: a.doing ? (rec ? (a.doing.startsWith('mcp__') ? 'mcp' : a.doing.replace(/ .*$/, '')) : a.doing) : undefined,
   }))
-  return { now, snap, mine, peers: shown, agents, n: working(mine, peers), rec }
+  const { value: mainModel } = await $.state.get(mainModelRef)
+  // Grabando: el nombre del CLAUDE.md podría ser el de un cliente → "principal".
+  const main = { name: rec ? 'principal' : await mainName($), model: mainModel }
+  return { now, snap, mine, peers: shown, agents, main, n: working(mine, peers), rec }
 }
 
 function duration(ms: number | undefined): string {
@@ -370,7 +398,7 @@ function duration(ms: number | undefined): string {
 
 /** La tabla de /uso en líneas de texto (la respuesta de /uso y el panel en la terminal). */
 async function usageLines($: EngineInterface): Promise<string[]> {
-  const { now, snap, mine, peers, agents, n, rec } = await usageView($)
+  const { now, snap, mine, peers, agents, main, n, rec } = await usageView($)
 
   const fichaLine = (f: Ficha, silent: boolean) =>
     silent
@@ -390,6 +418,7 @@ async function usageLines($: EngineInterface): Promise<string[]> {
     `Esta sesión: ${fichaLine(mine, false)}`,
     'Otras pestañas:',
     ...(peers.length ? peers.map(p => `  ${fichaLine(p, p.silent)}`) : ['  ninguna con el plugin']),
+    `Al mando: ${main.name} · ${mine.busy ? 'trabajando' : 'esperando tu mensaje'}${main.model ? ` · ${shortModel(main.model)}` : ''}`,
     'Subagentes de esta sesión:',
     ...(agents.length
       ? agents.map(a =>
@@ -443,7 +472,7 @@ function esc(s: string): string {
     .replace(/'/g, '&#39;')
 }
 
-/** Las 4 tarjetas (5 h, semana, contexto, costo) en un solo SVG de 440×70. */
+/** Las 4 tarjetas (5 h, semana, contexto, costo) una debajo de otra, en un SVG angosto (240 de ancho) que se achica con el panel. */
 function tiles(v: View): string {
   const lim = (kind: string) => v.snap.limits.find(l => l.kind === kind)
   const five = lim('five_hour')
@@ -454,26 +483,30 @@ function tiles(v: View): string {
     { k: 'Contexto', sub: 'de esta pestaña', val: v.snap.ctx === undefined ? '—' : `${v.snap.ctx} %`, pct: v.snap.ctx },
     { k: 'Costo sesión', sub: '≈ API', val: v.snap.usd === undefined ? '—' : `$${v.snap.usd.toFixed(2)}`, pct: undefined },
   ]
-  const W = 104
+  // Cada tarjeta: nombre y "renueva…" a la izquierda, el valor grande a la derecha, la barra abajo.
+  const W = 238
+  const H = 50
+  const GAP = 6
   const body = cards
     .map((c, i) => {
-      const x = i * (W + 8) + 1
+      const y = i * (H + GAP) + 1
       const pct = c.pct === undefined ? 0 : Math.max(0, Math.min(100, c.pct))
       const hot = pct >= 80 ? '#e2685f' : ORANGE
       return (
-        `<rect x="${x}" y="1" width="${W}" height="68" rx="5" fill="none" stroke="${GREY}" stroke-opacity=".35"/>` +
-        `<text x="${x + 9}" y="18" font-size="11" fill="${GREY}">${esc(c.k)}</text>` +
-        `<text x="${x + 9}" y="32" font-size="9.5" fill="${GREY}">${esc(c.sub)}</text>` +
-        `<text x="${x + 9}" y="52" font-size="16" font-weight="600" fill="${hot}">${esc(c.val)}</text>` +
+        `<rect x="1" y="${y}" width="${W}" height="${H}" rx="5" fill="none" stroke="${GREY}" stroke-opacity=".35"/>` +
+        `<text x="11" y="${y + 19}" font-size="12" fill="${GREY}">${esc(c.k)}</text>` +
+        `<text x="11" y="${y + 33}" font-size="10" fill="${GREY}">${esc(c.sub)}</text>` +
+        `<text x="${W - 9}" y="${y + 30}" font-size="18" font-weight="600" text-anchor="end" fill="${hot}">${esc(c.val)}</text>` +
         (c.pct === undefined
           ? ''
-          : `<rect x="${x + 9}" y="58" width="${W - 18}" height="4" rx="2" fill="${GREY}" fill-opacity=".3"/>` +
-            `<rect x="${x + 9}" y="58" width="${((W - 18) * pct) / 100}" height="4" rx="2" fill="${hot}"/>`)
+          : `<rect x="11" y="${y + 40}" width="${W - 20}" height="4" rx="2" fill="${GREY}" fill-opacity=".3"/>` +
+            `<rect x="11" y="${y + 40}" width="${((W - 20) * pct) / 100}" height="4" rx="2" fill="${hot}"/>`)
       )
     })
     .join('')
+  const total = cards.length * (H + GAP) - GAP + 2
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 442 70" width="442" height="70" ` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W + 2} ${total}" width="${W + 2}" height="${total}" ` +
     `font-family="Segoe UI, system-ui, sans-serif">${body}</svg>`
   )
 }
@@ -593,6 +626,8 @@ export const register: Register = on => {
       return done
     }
     await $.state.set(busyRef, false)
+    const mainUsage = done.usage ?? e.usage
+    if (mainUsage?.model) await $.state.set(mainModelRef, mainUsage.model) // modelo del hilo principal
     await pulse($)
 
     if (e.isAborted || ownTurn || !worked) return done
@@ -725,9 +760,9 @@ export const register: Register = on => {
     // La terminal no dibuja SVG: ahí va la tabla en texto.
     if (!('Svg' in els)) {
       const lines = await usageLines($)
+      // El título ya lo pone el panel ("USO - HAMMOCK AI"): no se repite adentro.
       return (
         <Box flexDirection="column">
-          <Text bold>USO - HAMMOCK AI</Text>
           {lines.map(line => (
             <Text dimColor={line.startsWith('USD =')}>{line}</Text>
           ))}
@@ -786,11 +821,9 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column" gap={1}>
-        <Box flexDirection="row" justifyContent="space-between">
-          <Text bold>USO - HAMMOCK AI</Text>
-          <Text dimColor size="footnote">pestaña: {v.mine.label}</Text>
-        </Box>
-        <Svg source={tiles(v)} alt={`Límites: ${limitsText(v.snap.limits, v.now) || 'sin lectura'}`} width={442} height={70} />
+        <Text dimColor size="footnote">pestaña: {v.mine.label}</Text>
+        {/* Sin width: el dibujo toma su ancho (240) y se achica si el panel es más angosto. */}
+        <Svg source={tiles(v)} alt={`Límites: ${limitsText(v.snap.limits, v.now) || 'sin lectura'}`} />
         {v.n > MAX_WORKING ? (
           <Box borderStyle="round" borderColor="warning" paddingX={1}>
             <Text color="warning">⚠ {v.n} trabajando a la vez · recomendado: máximo {MAX_WORKING}</Text>
@@ -803,7 +836,17 @@ export const register: Register = on => {
         </Box>
         <Box flexDirection="column">
           <Text dimColor size="caption">AGENTES DE ESTA PESTAÑA</Text>
-          {v.agents.length === 0 ? <Text dimColor size="footnote">Ninguno por ahora.</Text> : null}
+          {row({
+            key: 'main',
+            color: v.mine.busy ? ORANGE : GREY,
+            name: `Al mando: ${v.main.name}`,
+            tag: 'principal',
+            state: v.mine.busy ? 'trabajando…' : 'esperando tu mensaje',
+            tone: v.mine.busy ? 'claude' : 'inactive',
+            num: v.snap.ctx === undefined ? '—' : `${v.snap.ctx} %`,
+            detail: shortModel(v.main.model) || 'contexto',
+          })}
+          {v.agents.length === 0 ? <Text dimColor size="footnote">Sin subagentes por ahora.</Text> : null}
           {v.agents.map(a => {
             const active = ACTIVE.has(a.status)
             const ms = a.since === undefined ? undefined : (active ? v.now : (a.until ?? v.now)) - a.since

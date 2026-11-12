@@ -348,9 +348,12 @@ test('panel: se dibuja en vscode, desktop, mobile y terminal con título, pesta�
   out.ctx = 35
   out.fichas[`${DIR}/b.json`] = peer('b', 'bridge', 10 * MIN)
   out.agents = [{ id: 'a1', type: 'seguridad', description: 'Revisar monitor', status: 'running' }]
+  // El CLAUDE.md del proyecto nombra al hilo principal.
+  on('fs.ancestors', () => ({ value: [{ dir: 'C:/proj', name: 'CLAUDE.md', content: '# Contramaestre — agente de Claude Code\n\ntexto' }] }))
 
   await $.session.start({ cwd: 'C:/proj', surface: 'vscode', isInteractive: true })
   await $.prompt.submit({ text: 'Lee prompts/handoff/panol.md y parte.', origin: TYPED })
+  await $.turn.complete({ ...turnEnd, usage: { model: 'claude-opus-5-5', input_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 1 } } as never)
   await $.turn.start({ text: 'x', turnId: 'a', agentId: 'a1' } as never)
   await $.tool.call({ tool: 'Read', file_path: 'C:/x/register.tsx', agentId: 'a1' } as never)
   await clock.advance(0)
@@ -364,8 +367,12 @@ test('panel: se dibuja en vscode, desktop, mobile y terminal con título, pesta�
   } as const
   for (const surface of ['vscode', 'desktop', 'mobile', 'terminal'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.find({ type: 'Text', text: /USO - HAMMOCK AI/ }))?.text).toContain('USO - HAMMOCK AI')
+    // El título lo pone el panel: adentro no se repite.
+    expect(await ui.find({ type: 'Text', text: /USO - HAMMOCK AI/ })).toBeUndefined()
+    // El hilo principal aparece aunque no haya subagentes trabajando.
+    expect((await ui.find({ type: 'Text', text: /Al mando: Contramaestre/ }))?.text).toContain('Al mando: Contramaestre')
     if (surface !== 'terminal') {
+      expect((await ui.find({ type: 'Text', text: /^opus-5-5$/ }))?.text).toBe('opus-5-5')
       expect((await ui.find({ type: 'Text', text: /^bridge$/ }))?.text).toBe('bridge')
       expect((await ui.find({ type: 'Text', text: /Revisar monitor/ }))?.text).toBe('Revisar monitor')
       expect((await ui.find({ type: 'Text', text: /trabajando… Read register.tsx/ }))?.text).toBeDefined()
