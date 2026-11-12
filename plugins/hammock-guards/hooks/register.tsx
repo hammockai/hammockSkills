@@ -25,7 +25,9 @@ const LABEL: Record<string, string> = { five_hour: '5 h', seven_day: 'semana' }
 // Monitor
 const HEARTBEAT_MS = 60 * 1000 // latido de la ficha
 const WRITE_GAP_MS = 20 * 1000 // tope de escrituras por mediciones
-const SILENT_MS = 3 * 60 * 1000 // sin latido: "sin señal"
+// Viva = latido en los últimos 2½ min (el latido es cada 60 s). Cerrar una pestaña de VS Code no avisa
+// (session.end no llega), así que una ficha más vieja es de una pestaña cerrada: no se muestra.
+const ALIVE_MS = 150 * 1000
 const GONE_MS = 30 * 60 * 1000 // sin latido: ya no se muestra y su archivo se puede reusar
 const MAX_WORKING = 2 // recomendado: máx. 2 trabajando a la vez
 const MAX_FILES = 24 // fichas leídas como máximo
@@ -33,6 +35,9 @@ const ACTIVE = new Set(['pending', 'running', 'waiting'])
 const PANE = 'hammock-uso'
 
 const handoffRef = { plugin: 'hammock-guards', key: 'handoff' } as const
+const titleRef = { plugin: 'hammock-guards', key: 'title' } as const
+// Evidencia: qué recibió el plugin del título (va en la ficha como titleSrc).
+const titleEvtRef = { plugin: 'hammock-guards', key: 'titleEvt' } as const
 const nudgeRef = { plugin: 'hammock-guards', key: 'lastNudgeAt' } as const
 const warnedRef = { plugin: 'hammock-guards', key: 'warned' } as const
 const closedRef = { plugin: 'hammock-guards', key: 'closed' } as const
@@ -170,12 +175,22 @@ async function readFicha($: EngineInterface, path: string): Promise<Ficha | null
 
 /** Nombre corto de esta pestaña: el handoff (p. ej. plan) o la carpeta. */
 async function ownLabel($: EngineInterface): Promise<string> {
+  // 1.º el título de la pestaña (el de /rename o el automático), igual al que muestra VS Code.
+  const { value: title } = await $.state.get(titleRef)
+  const shown = title ? safeLabel(title) : '?'
+  if (shown !== '?') return shown
   const { value: named = null } = await $.state.get(handoffRef)
   if (named) return named.replace(/^.*\//, '').replace(/\.md$/, '')
   const root = slash(await $.session.root())
   return root.replace(/^.*\//, '') || root
 }
 
+
+/** Guarda la lista de subagentes solo si cambió (cada turno de subagente la refresca). */
+async function setAgents($: EngineInterface, next: AgentRow[]): Promise<void> {
+  const { value: prev = [] as AgentRow[] } = await $.state.get(agentsRef)
+  if (JSON.stringify(prev) !== JSON.stringify(next)) await $.state.set(agentsRef, next)
+}
 /** Subagentes de esta sesión con sus tokens. */
 async function readAgents($: EngineInterface): Promise<AgentRow[]> {
   const list = await $.agent.list()
@@ -242,6 +257,7 @@ async function beat($: EngineInterface, ended: boolean): Promise<void> {
 
   const peers: Peer[] = []
   let free: string | null = null
+  let own: string | null = null
   const { value: held = null } = await $.state.get(slotRef)
   let slot = held
   for (const f of files) {
@@ -258,10 +274,16 @@ async function beat($: EngineInterface, ended: boolean): Promise<void> {
       continue
     }
     if (ficha.at > now + 5 * 60 * 1000) continue // hora futura: no queda viva para siempre
-    if (ficha.id === id) continue
-    peers.push({ ...ficha, silent: now - ficha.at >= SILENT_MS })
+    if (ficha.id === id) {
+      own ??= f.name // mi ficha de antes (sesión reanudada): la vuelvo a usar, no abro otra
+      continue
+    }
+    if (now - ficha.at >= ALIVE_MS) continue // cerrada o colgada: no cuenta ni se muestra
+    if (peers.some(p => p.id === ficha.id)) continue // una pestaña, una fila
+    peers.push({ ...ficha, silent: false })
   }
-  if (slot === null) slot = free ?? `${mine}.json`
+  // El nombre del archivo no es el id: los archivos de pestañas cerradas se reusan (un mod no puede borrarlos).
+  if (slot === null) slot = own ?? free ?? `${mine}.json`
   if (slot !== held) await $.state.set(slotRef, slot)
 
   // Cifras del motor, sin estimar: session.usage() (sin desglose, la llamada es gratis).
@@ -289,6 +311,7 @@ async function beat($: EngineInterface, ended: boolean): Promise<void> {
     subs: ended ? 0 : agents.filter(a => ACTIVE.has(a.status)).length,
     at: now,
     ended,
+    titleSrc: (await $.state.get(titleEvtRef)).value ?? 'sin-evento',
   }
   if (dir !== null) await $.fs.write(`${dir}/${slot}`, JSON.stringify(ficha))
   await $.state.set(wroteRef, now)
@@ -300,6 +323,25 @@ async function beat($: EngineInterface, ended: boolean): Promise<void> {
 /** Cuántos trabajan ahora: turnos en curso + subagentes corriendo, en todas las pestañas con señal. */
 function working(mine: Ficha, peers: Peer[]): number {
   return [mine, ...peers.filter(p => !p.silent)].reduce((n, f) => n + (f.busy ? 1 : 0) + f.subs, 0)
+}
+
+/**
+ * El mismo conteo, separado como lo muestra la lista: pestañas trabajando y agentes corriendo
+ * (un agente puede seguir corriendo en una pestaña "en espera"). Ej.: "1 pestaña trabajando · 1 agente".
+ */
+function workingText(mine: Ficha, peers: Peer[]): string {
+  const all = [mine, ...peers.filter(p => !p.silent)]
+  const tabs = all.filter(f => f.busy).length
+  const subs = all.reduce((n, f) => n + f.subs, 0)
+  return (
+    `${tabs} pestaña${tabs === 1 ? '' : 's'} trabajando` +
+    (subs ? ` · ${subs} agente${subs === 1 ? '' : 's'}` : '')
+  )
+}
+
+/** Orden de la lista: por nombre (el motor no entrega el orden de las pestañas). */
+function byLabel(a: Ficha, b: Ficha): number {
+  return a.label.localeCompare(b.label, 'es', { sensitivity: 'base' })
 }
 
 function limitsText(limits: Limit[], now: number): string {
@@ -319,7 +361,7 @@ async function showStatus($: EngineInterface, mine: Ficha, peers: Peer[]): Promi
   const parts = [
     limitsText(snap.limits, now),
     snap.ctx === undefined ? '' : `contexto ${snap.ctx} %`,
-    `${n} trabajando`,
+    workingText(mine, peers),
   ].filter(Boolean)
   $.ui.status(`⏳ ${parts.join(' · ')}`)
 
@@ -347,24 +389,57 @@ type View = {
 
 let mainNameCache: string | null = null // variable del módulo: una recarga lo vuelve a leer
 
+/** Primer título "# …" de un texto, cortado antes de " — ", " - " o ":"; null si no hay. */
+function headingName(text: string): string | null {
+  const heading = text.match(/^#\s+(.+)$/m)?.[1] ?? ''
+  const cut = safeLabel(heading.split(/\s[—–-]\s|:/)[0])
+  return cut === '?' ? null : cut
+}
+
 /**
- * Nombre del hilo principal: el primer título "# …" del CLAUDE.md más cercano, cortado
- * antes de " — ", " - " o ":" (p. ej. "# Contramaestre — agente…" → "Contramaestre"). Sin él: "Claude".
+ * Nombre del hilo principal, en este orden:
+ * 1. el agente de los settings (`"agent": "contramaestre"`) → título de `.claude/agents/<agente>.md`
+ *    (del proyecto o del usuario) o, sin archivo, el nombre del agente;
+ * 2. el primer título del CLAUDE.md más cercano;
+ * 3. "Claude".
+ * Ej.: "# Contramaestre — agente de Claude Code" → "Contramaestre".
  */
 async function mainName($: EngineInterface): Promise<string> {
   if (mainNameCache !== null) return mainNameCache
-  let name = 'Claude'
+  let name: string | null = null
   try {
-    const found = await $.fs.ancestors({ names: ['CLAUDE.md'] })
-    const nearest = found[found.length - 1]
-    const heading = nearest?.content.match(/^#\s+(.+)$/m)?.[1] ?? ''
-    const cut = safeLabel(heading.split(/\s[—–-]\s|:/)[0])
-    if (cut !== '?') name = cut
+    const agent = await $.settings.read({ key: 'agent' })
+    // Solo un nombre de archivo simple: nada de rutas.
+    if (typeof agent === 'string' && /^[\w-]{1,64}$/.test(agent)) {
+      const root = slash(await $.session.root())
+      const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME'))
+      const config = (await $.env.get('CLAUDE_CONFIG_DIR')) ?? (home ? `${slash(home)}/.claude` : null)
+      const files = [`${root}/.claude/agents/${agent}.md`, ...(config ? [`${slash(config)}/agents/${agent}.md`] : [])]
+      for (const file of files) {
+        if (!(await $.fs.exists(file))) continue
+        const stat = await $.fs.stat(file, { resolve: true })
+        if (stat.isLink || stat.size > 256 * 1024) continue
+        // Donde de verdad cae el archivo (enlaces resueltos) debe seguir en su carpeta .../agents/<agente>.md.
+        const real = stat.realPath ? slash(stat.realPath).toLowerCase() : ''
+        if (!real.endsWith(`/agents/${agent}.md`.toLowerCase())) continue
+        name = headingName(await $.fs.read(file))
+        if (name) break
+      }
+      name ??= safeLabel(agent.charAt(0).toUpperCase() + agent.slice(1))
+    }
   } catch {
-    // sin CLAUDE.md legible: queda "Claude"
+    // settings o archivo ilegibles: sigue con el respaldo
   }
-  mainNameCache = name
-  return name
+  if (!name) {
+    try {
+      const found = await $.fs.ancestors({ names: ['CLAUDE.md'] })
+      name = headingName(found[found.length - 1]?.content ?? '')
+    } catch {
+      // sin CLAUDE.md legible
+    }
+  }
+  mainNameCache = name ?? 'Claude'
+  return mainNameCache
 }
 
 async function usageView($: EngineInterface): Promise<View> {
@@ -378,12 +453,17 @@ async function usageView($: EngineInterface): Promise<View> {
   const mine: Ficha = { v: 1, id: '', label: rec ? 'esta pestaña' : await ownLabel($), busy, ctx: snap.ctx, usd: snap.usd, subs, at: now }
   // Grabando: nombres genéricos (pestaña 1, 2…), sin tareas ni archivos.
   const shown = rec ? peers.map((p, i) => ({ ...p, label: `pestaña ${i + 1}` })) : peers
-  const agents = raw.map(a => ({
-    ...a,
-    task: rec ? '' : clean(a.task, 50),
-    // Grabando: solo el nombre de la herramienta, y "mcp" para un conector (no deja ver cuáles tienes).
-    doing: a.doing ? (rec ? (a.doing.startsWith('mcp__') ? 'mcp' : a.doing.replace(/ .*$/, '')) : a.doing) : undefined,
-  }))
+  // Actividad en vivo (cada llamada de herramienta la escribe), no la del último latido.
+  const { value: activity = {} as Record<string, string> } = await $.state.get(activityRef)
+  const agents = raw.map(a => {
+    const live = ACTIVE.has(a.status) ? (activity[a.id] ?? a.doing) : undefined
+    return {
+      ...a,
+      task: rec ? '' : clean(a.task, 50),
+      // Grabando: solo el nombre de la herramienta, y "mcp" para un conector (no deja ver cuáles tienes).
+      doing: live ? (rec ? (live.startsWith('mcp__') ? 'mcp' : live.replace(/ .*$/, '')) : live) : undefined,
+    }
+  })
   const { value: mainModel } = await $.state.get(mainModelRef)
   // Grabando: el nombre del CLAUDE.md podría ser el de un cliente → "principal".
   const main = { name: rec ? 'principal' : await mainName($), model: mainModel }
@@ -432,7 +512,7 @@ async function usageLines($: EngineInterface): Promise<string[]> {
             .join(' · '),
         )
       : ['  ninguno']),
-    `Trabajando ahora: ${n}${n > MAX_WORKING ? ` ⚠️ (recomendado: máx. ${MAX_WORKING} a la vez)` : ''}`,
+    `Trabajando ahora: ${workingText(mine, peers)}${n > MAX_WORKING ? ` ⚠️ (recomendado: máx. ${MAX_WORKING} a la vez)` : ''}`,
     'USD = lo que costaría por API (en suscripción no se cobra); sirve para comparar sesiones.',
     'Tokens: entrada sin lecturas de caché; se suman al terminar cada turno del subagente.',
     ...(rec ? ['🎥 Modo grabación: nombres y rutas ocultos (/uso normal para volver).'] : []),
@@ -472,8 +552,12 @@ function esc(s: string): string {
     .replace(/'/g, '&#39;')
 }
 
-/** Las 4 tarjetas (5 h, semana, contexto, costo) una debajo de otra, en un SVG angosto (240 de ancho) que se achica con el panel. */
-function tiles(v: View): string {
+/**
+ * Las tarjetas en dos bloques de tamaño FIJO (230 px de ancho): [5 h, semana] y [contexto, costo].
+ * Con el ancho fijo el texto no crece en un panel ancho; si cabe, los bloques van lado a lado.
+ */
+const TILE_W = 230
+function tiles(v: View, part: 0 | 1): string {
   const lim = (kind: string) => v.snap.limits.find(l => l.kind === kind)
   const five = lim('five_hour')
   const week = lim('seven_day')
@@ -482,9 +566,9 @@ function tiles(v: View): string {
     { k: 'Semana', sub: week ? `renueva ${untilReset(week.resetsAt, v.now)}` : 'sin lectura', val: week ? `${week.percentUsed} %` : '—', pct: week?.percentUsed },
     { k: 'Contexto', sub: 'de esta pestaña', val: v.snap.ctx === undefined ? '—' : `${v.snap.ctx} %`, pct: v.snap.ctx },
     { k: 'Costo sesión', sub: '≈ API', val: v.snap.usd === undefined ? '—' : `$${v.snap.usd.toFixed(2)}`, pct: undefined },
-  ]
+  ].slice(part * 2, part * 2 + 2)
   // Cada tarjeta: nombre y "renueva…" a la izquierda, el valor grande a la derecha, la barra abajo.
-  const W = 238
+  const W = TILE_W - 2
   const H = 50
   const GAP = 6
   const body = cards
@@ -543,6 +627,28 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
+  // Título de la pestaña (/rename o automático): llega al iniciar o reanudar y con cada mensaje.
+  on('classic.SessionStart', async ($, e, next) => {
+    const has = typeof e.session_title === 'string' && e.session_title !== ''
+    await $.state.set(titleEvtRef, has ? 'titulo' : 'evento-sin-titulo')
+    if (has) await $.state.set(titleRef, String(e.session_title).slice(0, 80))
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('classic.UserPromptSubmit', async ($, e, next) => {
+    const has = typeof e.session_title === 'string' && e.session_title !== ''
+    const { value: evt } = await $.state.get(titleEvtRef)
+    if (evt !== 'titulo') await $.state.set(titleEvtRef, has ? 'titulo' : 'evento-sin-titulo')
+    if (typeof e.session_title === 'string' && e.session_title) {
+      const { value: was } = await $.state.get(titleRef)
+      if (was !== e.session_title) {
+        await $.state.set(titleRef, e.session_title.slice(0, 80))
+        heartbeat($).catch(() => undefined) // el nombre nuevo llega a las otras pestañas al tiro
+      }
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
   on('session.end', async ($, e, next) => {
     stopTick?.()
     stopTick = null
@@ -598,6 +704,9 @@ export const register: Register = on => {
       const { value: tokens = {} as Tokens } = await $.state.get(tokensRef)
       const was = tokens[id] ?? { inTok: 0, outTok: 0 }
       await $.state.set(tokensRef, { ...tokens, [id]: { ...was, since: was.since ?? now, until: undefined } })
+      // Al partir un subagente, la lista se pone al día al tiro (no espera el latido).
+      await setAgents($, await readAgents($))
+      await pulse($)
     }
     return started
   }).catch(($, e, next) => next(e))
@@ -622,6 +731,7 @@ export const register: Register = on => {
           until: now,
         },
       })
+      await setAgents($, await readAgents($))
       await pulse($)
       return done
     }
@@ -822,8 +932,11 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" gap={1}>
         <Text dimColor size="footnote">pestaña: {v.mine.label}</Text>
-        {/* Sin width: el dibujo toma su ancho (240) y se achica si el panel es más angosto. */}
-        <Svg source={tiles(v)} alt={`Límites: ${limitsText(v.snap.limits, v.now) || 'sin lectura'}`} />
+        {/* Tamaño fijo: en panel angosto, uno bajo otro; en panel ancho, lado a lado. */}
+        <Box flexDirection="row" flexWrap="wrap" gap={1}>
+          <Svg source={tiles(v, 0)} alt={`Límites: ${limitsText(v.snap.limits, v.now) || 'sin lectura'}`} width={TILE_W} height={108} />
+          <Svg source={tiles(v, 1)} alt={`Contexto ${v.snap.ctx ?? '—'} %, costo ${usd(v.snap.usd)}`} width={TILE_W} height={108} />
+        </Box>
         {v.n > MAX_WORKING ? (
           <Box borderStyle="round" borderColor="warning" paddingX={1}>
             <Text color="warning">⚠ {v.n} trabajando a la vez · recomendado: máximo {MAX_WORKING}</Text>
@@ -831,8 +944,11 @@ export const register: Register = on => {
         ) : null}
         <Box flexDirection="column">
           <Text dimColor size="caption">PESTAÑAS</Text>
-          {tab(v.mine, 'mine', 'esta')}
-          {v.peers.map((p, i) => tab(p, `p${i}`, undefined, p.silent))}
+          {/* Todas por nombre, esta incluida y marcada "esta"; arriba, el conteo igual al de la status line. */}
+          <Text dimColor size="footnote">{workingText(v.mine, v.peers)}</Text>
+          {[{ f: v.mine as Ficha, key: 'mine', isMine: true }, ...v.peers.map((p, i) => ({ f: p as Ficha, key: `p${i}`, isMine: false }))]
+            .sort((a, b) => byLabel(a.f, b.f))
+            .map(t => tab(t.f, t.key, t.isMine ? 'esta' : undefined))}
         </Box>
         <Box flexDirection="column">
           <Text dimColor size="caption">AGENTES DE ESTA PESTAÑA</Text>

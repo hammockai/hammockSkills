@@ -44,7 +44,8 @@ claude plugin install hammock-guards@hammock-skills
 **Bueno saber**
 - El panel y sus mensajes están en español.
 - Todas las cifras salen del propio Claude Code (`/usage`, `/context`, `/cost`); nada es estimado. El monto en dólares es lo que costaría la sesión por la API, no lo que pagas con una suscripción.
-- Para ver tus otras pestañas, cada una escribe un archivo chico sobre sí misma en `~/.claude/hammock-usage/` (o `$CLAUDE_CONFIG_DIR/hammock-usage/`): el id de la sesión, el nombre de la carpeta o de la nota de sesión y cifras de uso; nunca tu conversación. Los archivos se reusan y no se borran solos. Solo aparecen las pestañas que tienen el plugin.
+- Para ver tus otras pestañas, cada una escribe un archivo chico sobre sí misma en `~/.claude/hammock-usage/` (o `$CLAUDE_CONFIG_DIR/hammock-usage/`): el id de la sesión, el título de la pestaña (el que le pones con /rename, o el automático que Claude Code resume de tu conversación, que puede nombrar a un cliente o proyecto), cifras de uso y una marca técnica de dónde salió el título; nunca el texto de tu conversación. Los archivos se reusan y no se borran solos. Solo aparecen las pestañas que tienen el plugin.
+- Para la fila "Al mando" (quién lleva la pestaña) lee solo el primer título de tu agente principal (`.claude/agents/<agente>.md`, el que nombran tus settings) o de tu `CLAUDE.md`. Nada sale de tu computador.
 - Antes de grabar tu pantalla, escribe `/uso grabar`: se ocultan los nombres de pestañas, carpetas, tareas, archivos y conectores. `/uso normal` lo apaga.
 - Usa los hooks de plugins de Claude Code, una función en acceso anticipado que puede cambiar entre versiones.
 - La idea de la lista de agentes y del conteo de tokens viene de [mod-roadmap-monitor](https://github.com/jlefernandez/mod-roadmap-monitor), de jlefernandez. Nuestro código está escrito desde cero; no copia nada del suyo.

@@ -37,7 +37,7 @@ If two sources disagree, the newer dated file wins and you flag it in one line. 
 **Language:** the output is in Spanish (the Captain's language), short. Fixed tags stay as written.
 
 ## When to use it and when not
-- Use it for: the first message of the day's coordinating session. One Bridge per day.
+- Use it for: opening a NEW coordinating session (The Bridge). A Bridge lasts as long as its context window, not one day (Captain, 2026-11-12): do not open a new one daily; resume the open one by reading `prompts/handoff/bridge.md` and the board.
 - Do not use it for: closing the session (`hammockai-session-close`); assigning work to agents (the Contramaestre, after the Captain picks); weekly reviews or surf forecasts (out of this version).
 
 ## Inputs (read only, in this order)

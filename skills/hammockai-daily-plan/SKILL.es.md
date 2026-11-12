@@ -37,7 +37,7 @@ Si dos fuentes no coinciden, gana el archivo con fecha más nueva y lo avisas en
 **Idioma:** la salida va en español (el idioma del Capitán), corta. Las etiquetas fijas quedan tal cual.
 
 ## Cuándo se usa y cuándo no
-- Se usa para: el primer mensaje de la sesión coordinadora del día. Un Bridge por día.
+- Se usa para: abrir una sesión coordinadora NUEVA (The Bridge). Un Bridge dura lo que su ventana de contexto, no un día (Capitán, 2026-11-12): no se abre uno nuevo cada día; el que está abierto se retoma leyendo `prompts/handoff/bridge.md` y el tablero.
 - No se usa para: cerrar la sesión (`hammockai-session-close`); asignar trabajo a agentes (el Contramaestre, después de que el Capitán elige); revisiones semanales ni pronóstico de olas (fuera de esta versión).
 
 ## Entradas (solo lectura, en este orden)

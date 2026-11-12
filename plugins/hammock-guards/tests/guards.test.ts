@@ -24,10 +24,10 @@ function world(
   on('session.root', () => ({ value: root }))
   on('fs.exists', (_, e) => {
     const p = slash(e.path)
-    return { value: p in files || dirs.has(p) || Object.keys(out.fichas).some(k => k.startsWith(`${p}/`)) }
+    return { value: p in files || p in out.fichas || dirs.has(p) || Object.keys(out.fichas).some(k => k.startsWith(`${p}/`)) }
   })
   mock.store(on, store)
-  on('fs.stat', (_, e) => ({ value: { kind: 'file', size: 1, mtimeMs: files[slash(e.path)] ?? 0, isLink: false } }))
+  on('fs.stat', (_, e) => ({ value: { kind: 'file', size: 1, mtimeMs: files[slash(e.path)] ?? 0, isLink: false, realPath: e.path } }))
   on('ui.toast', (_, e) => (out.toasts.push(e.text), { value: undefined }))
   on('ui.status', (_, e) => (out.status.push(e.text), { value: undefined }))
   on('prompt.submit', (_, e) => (e.origin?.kind === 'plugin' && out.prompts.push(e.text), { text: e.text }))
@@ -118,7 +118,7 @@ test('límites: status, toast al 80 % y cierre al 90 %, una vez por ventana', as
   await $.session.start({ cwd: 'C:/proj', surface: 'vscode', isInteractive: true })
   await measure(42, 18)
   await clock.advance(0)
-  expect(out.status.at(-1)).toBe('⏳ 5 h 42 % (renueva en 2 h 30 min) · semana 18 % (renueva en 3 d 4 h) · 0 trabajando')
+  expect(out.status.at(-1)).toBe('⏳ 5 h 42 % (renueva en 2 h 30 min) · semana 18 % (renueva en 3 d 4 h) · 0 pestañas trabajando')
   expect(out.toasts.length).toBe(0)
 
   await measure(81, 18)
@@ -239,7 +239,7 @@ test('monitor: escribe su ficha, lee las otras pestañas y cuenta quién trabaja
   expect(mine.ctx).toBe(35)
   expect(Object.keys(out.fichas).length).toBe(2)
   // Yo trabajando + bridge trabajando con 1 subagente = 3 → aviso de la regla 2, una vez.
-  expect(out.status.at(-1)).toContain('contexto 35 % · 3 trabajando')
+  expect(out.status.at(-1)).toContain('contexto 35 % · 2 pestañas trabajando · 1 agente')
   expect(out.toasts.filter(t => t.includes('3 trabajando')).length).toBe(1)
 
   // /uso en VS Code (sin panel): la tabla va en texto.
@@ -250,17 +250,19 @@ test('monitor: escribe su ficha, lee las otras pestañas y cuenta quién trabaja
   expect(text).not.toContain('web')
 })
 
-test('monitor: una pestaña sin latido sale "sin señal" y no cuenta', async ($, on) => {
+test('monitor: una pestaña sin latido reciente (cerrada) no aparece ni cuenta', async ($, on) => {
   const clock = mock.clock(on, { now: 10 * MIN })
   mock.env(on, HOME)
   const out = world(on, {})
-  out.fichas[`${DIR}/b.json`] = peer('b', 'bridge', 4 * MIN) // hace 6 min
+  out.fichas[`${DIR}/b.json`] = peer('b', 'bridge', 4 * MIN) // hace 6 min: cerrada
+  out.fichas[`${DIR}/v.json`] = peer('v', 'viva', 10 * MIN - 90 * 1000) // hace 1½ min: abierta
 
   await $.session.start({ cwd: 'C:/proj', surface: 'vscode', isInteractive: true })
   await clock.advance(0)
-  expect(out.status.at(-1)).toContain('0 trabajando')
+  expect(out.status.at(-1)).toContain('1 pestaña trabajando · 1 agente') // viva (1 turno + 1 subagente); la cerrada no suma
   const text = ((await $.command.run({ command: 'uso', args: '' } as never)) as { text?: string }).text ?? ''
-  expect(text).toContain('bridge · sin señal (hace 6 min)')
+  expect(text).not.toContain('bridge')
+  expect(text).toContain('viva · trabajando')
 })
 
 test('monitor: subagentes con estado, actividad y tokens (sin lecturas de caché)', async ($, on) => {
@@ -380,4 +382,60 @@ test('panel: se dibuja en vscode, desktop, mobile y terminal con título, pesta�
     }
     await ui.unmount()
   }
+})
+
+test('panel: "Al mando" sale del agente de los settings y un subagente aparece apenas parte', async ($, on) => {
+  const clock = mock.clock(on, { now: 10 * MIN })
+  mock.env(on, HOME)
+  const out = world(on, {})
+  // Sin CLAUDE.md: el principal viene de "agent": "contramaestre" → .claude/agents/contramaestre.md
+  on('settings.read', () => ({ value: { agent: 'contramaestre' } }))
+  on('fs.ancestors', () => ({ value: [] }))
+  out.fichas['C:/proj/.claude/agents/contramaestre.md'] = '---\nname: contramaestre\n---\n\n# Contramaestre — agente de Claude Code\n'
+
+  await $.session.start({ cwd: 'C:/proj', surface: 'vscode', isInteractive: true })
+  await clock.advance(30 * 1000) // pasa el tope de 20 s del latido
+  out.agents = [{ id: 'a9', type: 'Explore', description: 'Buscar tipos', status: 'running' }]
+  await $.turn.start({ text: 'x', turnId: 'b', agentId: 'a9' } as never) // sin /uso ni latido de por medio
+
+  const PANE = {
+    plugin: 'hammock-guards',
+    component: 'Pane',
+    requestId: 'hammock-uso',
+    props: { title: 'USO - HAMMOCK AI', isFocused: false, bodyColumns: 40, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
+  } as const
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  expect((await ui.find({ type: 'Text', text: /Al mando: Contramaestre/ }))?.text).toBe('Al mando: Contramaestre')
+  expect((await ui.find({ type: 'Text', text: /Buscar tipos/ }))?.text).toBe('Buscar tipos')
+  await ui.unmount()
+})
+
+test('pestañas: el nombre es el título de la pestaña, ordenadas por nombre, y el conteo cuadra', async ($, on) => {
+  const clock = mock.clock(on, { now: 10 * MIN })
+  mock.env(on, HOME)
+  const out = world(on, {})
+  out.fichas[`${DIR}/w.json`] = peer('w', 'web studio', 10 * MIN, { busy: false, subs: 0 })
+  out.fichas[`${DIR}/b.json`] = peer('b', 'bridge 08.11.26', 10 * MIN, { busy: true, subs: 0 })
+
+  on('classic.SessionStart', () => ({})) // el motor de mentira: sin hooks de settings debajo
+  await $.session.start({ cwd: 'C:/proj', surface: 'vscode', isInteractive: true })
+  await $.classic.SessionStart({ source: 'resume', session_title: 'PANOL' } as never)
+  await clock.advance(30 * 1000)
+  await $.command.run({ command: 'uso', args: '' } as never)
+
+  const mine = Object.values(out.fichas).map(s => JSON.parse(s)).find(j => j.id === 'mine-1')
+  expect(mine.label).toBe('PANOL') // el título de la pestaña, no la carpeta
+
+  const PANE = {
+    plugin: 'hammock-guards',
+    component: 'Pane',
+    requestId: 'hammock-uso',
+    props: { title: 'USO - HAMMOCK AI', isFocused: false, bodyColumns: 40, placement: 'dock', scroll: { offset: 0, bodyRows: 60 }, view: {} },
+  } as const
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  for (const n of ['bridge 08.11.26', 'PANOL', 'web studio']) {
+    expect((await ui.find({ type: 'Text', text: new RegExp(`^${n}$`) }))?.text).toBe(n)
+  }
+  expect((await ui.find({ type: 'Text', text: /pestaña.* trabajando/ }))?.text).toBe('1 pestaña trabajando')
+  await ui.unmount()
 })

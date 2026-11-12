@@ -29,6 +29,8 @@ export type Ficha = {
   at: number
   /** La pestaña se cerró. */
   ended?: boolean
+  /** Evidencia del título: sin-evento | evento-sin-titulo | titulo. */
+  titleSrc?: string
 }
 
 /** Ficha de otra pestaña, con su señal. */
@@ -83,6 +85,10 @@ declare module 'claude-code' {
       activity: Record<string, string>
       /** Modelo de la última respuesta del hilo principal. */
       mainModel: string
+      /** Título de la pestaña (el de /rename o el automático), del motor. */
+      title: string
+      /** Qué recibió del título el plugin (sin-evento | evento-sin-titulo | titulo). */
+      titleEvt: string
       // El modo grabación vive en $.store ('recording'): una sola fuente para todas las pestañas.
     }
   }

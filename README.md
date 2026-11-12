@@ -44,7 +44,8 @@ claude plugin install hammock-guards@hammock-skills
 **Good to know**
 - The panel and its messages are in Spanish.
 - Every figure comes from Claude Code itself (`/usage`, `/context`, `/cost`); nothing is estimated. The dollar amount is what the session would cost on the API, not what you pay on a subscription.
-- To see your other tabs, each tab writes a small file about itself in `~/.claude/hammock-usage/` (or `$CLAUDE_CONFIG_DIR/hammock-usage/`): the session id, the name of the project folder or session note, and usage figures; never your conversation. The files are reused, not deleted on their own. Only tabs with the plugin show up.
+- To see your other tabs, each tab writes a small file about itself in `~/.claude/hammock-usage/` (or `$CLAUDE_CONFIG_DIR/hammock-usage/`): the session id, the tab title (the one you set with /rename, or the automatic one Claude Code writes from your conversation, which may name a client or project), usage figures and a technical mark of where the title came from; never the text of your conversation. The files are reused, not deleted on their own. Only tabs with the plugin show up.
+- For the "Al mando" row (who leads the tab) it reads only the first heading of your main agent (`.claude/agents/<agent>.md`, named in your settings) or of your `CLAUDE.md`. Nothing leaves your computer.
 - Before recording your screen, type `/uso grabar`: tab, folder, task, file and connector names are hidden. `/uso normal` turns it off.
 - It uses Claude Code's plugin hooks, an early-access feature that may change between versions.
 - The idea for the agent list and the token count came from [mod-roadmap-monitor](https://github.com/jlefernandez/mod-roadmap-monitor) by jlefernandez. Our code is written from scratch; none of his is copied.
