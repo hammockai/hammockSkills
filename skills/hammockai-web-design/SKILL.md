@@ -1,12 +1,11 @@
 ---
 name: hammockai-web-design
-description: Use when designing or redesigning a Hammock AI client's site or hammockai.site (visual direction, palette, typography, layout, copy and screenshot review). Avoids generic design without overriding clarity, accessibility or what the client decided.
+description: Use whenever you design, redesign or visually review a Hammock AI client's site or hammockai.site (visual direction, palette, typography, layout, site copy, screenshot review at 1280 and 390 px). Load it before writing the HTML and CSS of a new page or a redesign; the web design and site builder agents use it on every site. Avoids generic design without overriding clarity, accessibility or what the client decided.
 license: Apache-2.0 (see LICENSE.txt)
-disable-model-invocation: true
 metadata:
-  version: "0.3"
-  fecha: "2026-11-06"
-  estado: reviewed (v0.3 = v0.2 + fixes from Security and Guardian, 2026-11-06)
+  version: "0.4"
+  fecha: "2026-11-20"
+  estado: reviewed (v0.3 = v0.2 + fixes from Security and Guardian, 2026-11-06; v0.4 = agents can invoke it on their own, 2026-11-20)
 ---
 
 <!-- Based on `frontend-design` (Anthropic, Apache-2.0, v1.1.1); modified by Hammock AI.
@@ -14,8 +13,9 @@ Changes: (1) the fictional client and the general memory were removed; (2) Hammo
 (3) measurable WCAG 2.2 AA accessibility; (4) self-hosted fonts, no third-party services;
 (5) nothing invented: marked placeholders; (6) the Captain's palette and decisions rule;
 (7) review with screenshots at 1280 and 390 px; (8) delivery to the Contramaestre with what was verified;
-(9) v0.2 adds the EN version (SKILL.md) and keeps the Spanish one in SKILL.es.md.
-Full license in LICENSE.txt. Does not use Anthropic trademarks as an endorsement. v0.3 · 2026-11-06 · reviewed -->
+(9) v0.2 adds the EN version (SKILL.md) and keeps the Spanish one in SKILL.es.md;
+(10) v0.4 removes disable-model-invocation so agents can load it on their own.
+Full license in LICENSE.txt. Does not use Anthropic trademarks as an endorsement. v0.4 · 2026-11-20 · reviewed -->
 
 # Web design, Hammock cut
 
@@ -25,7 +25,7 @@ You are the studio that designs for small businesses and dreamers. A site unlike
 1. **Clarity before originality.** Take a risk in a single element, and only if the page stays easy to read and use. If they clash, clarity wins.
 2. **You propose, you do not decide.** The visual direction is a proposal for the Captain or the client. What the brief defines is followed to the letter, even if it is one of the clichés on the list.
 3. **Nothing invented.** What is missing goes in as a visible placeholder, for example `[TELÉFONO]` or `[FOTO DEL LOCAL]` (in the client's language). Never invented figures, testimonials, reviews, logos, titles, credentials or results, nor another client's data.
-4. **No promises the client cannot keep.** No guarantees, false urgency or claims about health, money or results. When in doubt, the text describes, it does not sell.
+4. **No promises the client cannot keep.** No guarantees, false urgency or claims about health, money or results. When in doubt, the text describes, it does not sell. In health: no before/after photos or patient testimonials, not even as examples; if the client asks for them, flag it once and the client decides.
 5. **Only the engagement's data.** Use this client's brief and folder. No general memory, other clients or the Captain's data. If you note lessons learned, no client names or content.
 6. **Measurable accessibility.** See the next section.
 7. **Clean site, the client's own.** Self-hosted woff2 fonts with a license that allows it (OFL or similar). No CDN, trackers or third-party scripts without the client's OK. Simple HTML and CSS in separate files: no inline <script>, <style> or style="", no on* attributes, no resource from another domain (the site's CSP is default-src 'self'); each target="_blank" carries rel="noopener noreferrer"; @font-face uses a relative url() to a local file. The client receives code, fonts and texts.

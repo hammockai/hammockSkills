@@ -1,12 +1,11 @@
 ---
 name: hammockai-web-design
-description: Úsala al diseñar o rediseñar el sitio de un cliente de Hammock AI o hammockai.site (dirección visual, paleta, tipografía, maquetación, textos y revisión con capturas). Evita el diseño genérico sin pasar por encima de la claridad, la accesibilidad ni lo que decidió el cliente.
+description: Úsala siempre que diseñes, rediseñes o revises lo visual del sitio de un cliente de Hammock AI o de hammockai.site (dirección visual, paleta, tipografía, maquetación, textos del sitio, revisión con capturas a 1280 y 390 px). Cárgala antes de escribir el HTML y el CSS de una página nueva o de un rediseño; los agentes de diseño web y de construcción de sitios la usan en cada sitio. Evita el diseño genérico sin pasar por encima de la claridad, la accesibilidad ni lo que decidió el cliente.
 license: Apache-2.0 (ver LICENSE.txt)
-disable-model-invocation: true
 metadata:
-  version: "0.3"
-  fecha: "2026-11-06"
-  estado: revisada (v0.3 = v0.2 + arreglos de Security y Guardian, 2026-11-06)
+  version: "0.4"
+  fecha: "2026-11-20"
+  estado: revisada (v0.3 = v0.2 + arreglos de Security y Guardian, 2026-11-06; v0.4 = los agentes pueden invocarla solos, 2026-11-20)
 ---
 
 <!-- Basado en `frontend-design` (Anthropic, Apache-2.0, v1.1.1); modificado por Hammock AI.
@@ -14,8 +13,9 @@ Cambios: (1) se quitó el cliente ficticio y la memoria general; (2) 8 reglas de
 (3) accesibilidad WCAG 2.2 AA medible; (4) fuentes autoalojadas, sin servicios de terceros;
 (5) nada inventado: placeholders marcados; (6) paleta y decisiones del Capitán mandan;
 (7) revisión con capturas a 1280 y 390 px; (8) entrega al Contramaestre con lo verificado;
-(9) la v0.2 suma la versión EN (SKILL.md) y conserva esta en SKILL.es.md.
-Licencia completa en LICENSE.txt. No usa marcas de Anthropic como respaldo. v0.3 · 2026-11-06 · revisada -->
+(9) la v0.2 suma la versión EN (SKILL.md) y conserva esta en SKILL.es.md;
+(10) la v0.4 quita disable-model-invocation para que los agentes la carguen solos.
+Licencia completa en LICENSE.txt. No usa marcas de Anthropic como respaldo. v0.4 · 2026-11-20 · revisada -->
 
 # Diseño web, corte Hammock
 
@@ -25,7 +25,7 @@ Eres el estudio que diseña para pequeños negocios y soñadores. Un sitio disti
 1. **Claridad antes que originalidad.** Arriesga en un solo elemento y solo si la página sigue fácil de leer y usar. Si chocan, gana la claridad.
 2. **Propones, no decides.** La dirección visual es una propuesta para el Capitán o el cliente. Lo que el encargo define se sigue al pie de la letra, aunque sea uno de los tics de la lista.
 3. **Nada inventado.** Lo que falte va como placeholder visible, por ejemplo `[TELÉFONO]` o `[FOTO DEL LOCAL]` (en el idioma del cliente). Nunca cifras, testimonios, reseñas, logos, títulos, credenciales ni resultados inventados, ni datos de otro cliente.
-4. **Sin promesas que el cliente no puede cumplir.** Sin garantías, urgencia falsa ni afirmaciones de salud, dinero o resultados. En duda, el texto describe, no vende.
+4. **Sin promesas que el cliente no puede cumplir.** Sin garantías, urgencia falsa ni afirmaciones de salud, dinero o resultados. En duda, el texto describe, no vende. En salud: sin antes/después ni opiniones de pacientes, ni siquiera de ejemplo; si el cliente las pide, se avisa una vez y decide él.
 5. **Solo los datos del encargo.** Usa el brief y la carpeta de este cliente. Sin memoria general, otros clientes ni datos del Capitán. Si anotas aprendizajes, sin nombres ni contenido de clientes.
 6. **Accesibilidad medible.** Ver la sección siguiente.
 7. **Sitio limpio y del cliente.** Fuentes woff2 autoalojadas con licencia que lo permita (OFL o similar). Sin CDN, rastreadores ni scripts de terceros sin OK del cliente. HTML y CSS simples en archivos aparte: sin <script>, <style> ni style="" en línea, sin atributos on*, sin recursos de otro dominio (la CSP del sitio es default-src 'self'); cada target="_blank" lleva rel="noopener noreferrer"; @font-face con url() relativa a un archivo local. El cliente recibe código, fuentes y textos.
